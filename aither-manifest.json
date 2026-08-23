@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1",
+  "name": "awtoll",
+  "description": "What every tool call costs you in context, measured from your own transcripts.",
+  "url": "https://aitherium.github.io/awtoll/",
+  "repository": "https://github.com/Aitherium/awtoll",
+  "kind": "tool",
+  "status": "public",
+  "adopt": "Point it at your agent transcripts and see what your ten most-used commands cost.",
+  "pairs_with": [
+    "awgraph",
+    "awgit",
+    "awdk"
+  ],
+  "includes": []
+}

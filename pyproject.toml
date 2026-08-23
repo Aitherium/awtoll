@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "awtoll"
+version = "0.1.0"
+description = "What every tool call costs you in context — measured from your own agent transcripts, not claimed in a README."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+# No required dependencies, on purpose. A meter for how much your tooling costs
+# must not itself cost an install; it reads JSONL off disk with the stdlib.
+dependencies = []
+
+[project.optional-dependencies]
+# tiktoken makes counts EXACT. Without it the measured chars/token estimator is
+# used and every number is labelled ESTIMATED.
+exact = ["tiktoken>=0.5.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+awtoll = "awtoll.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Aitherium/awtoll"
+Documentation = "https://github.com/Aitherium/awtoll#readme"
+Repository = "https://github.com/Aitherium/awtoll.git"
+Issues = "https://github.com/Aitherium/awtoll/issues"
+
+[tool.setuptools]
+packages = ["awtoll"]
+license-files = ["LICENSE"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+# See the sibling packages: the monorepo gate runs `ruff --isolated` from the
+# REPO ROOT, where first-party detection files `awtoll` as third-party. Rooted
+# here it would be detected as first-party and demand the OPPOSITE import
+# layout -- two invocations, mutually exclusive verdicts, each --fix undoing
+# the other. Empty src disables path-based detection so both agree.
+src = []
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501", "E402", "E741"]
+
+[tool.ruff.lint.isort]
+# tests/ imports this package BY NAME, and `src = []` above does not settle
+# that case: from the repo root ruff files `awtoll` third-party, from here it
+# would call it first-party, and the two --fix each other in a loop. Measured:
+# they produced mutually exclusive verdicts on tests/test_awtoll.py. The repo
+# root is the invocation that blocks a merge, so it wins and this makes a local
+# run agree. NOTE a bare `ruff --isolated` run from this directory reads none of
+# this and will still disagree -- use `ruff check .` here, not `--isolated`.
+known-third-party = ["awtoll"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
