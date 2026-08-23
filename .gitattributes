@@ -1,1 +1,15 @@
+# Pin LF for everything text, because this package is authored on Windows and
+# mirrored to a public repo by a Linux runner. Without it the two writers
+# disagree about line endings and a sync rewrites every file it did not change
+# -- a diff of the whole tree that hides the one line that actually moved.
+#
+# It lives HERE, in the package, and not in the mirror. sync-awtoll.yml clears
+# the mirror with `ls -A | grep -vE '^\.(git|github|gitignore)$'`, which
+# preserves .gitignore and does NOT preserve .gitattributes -- so a copy that
+# exists only in the mirror is deleted by the first sync and silently never
+# comes back. Measured 2026-08-23: that is exactly what the first version of
+# this file did. Anything the mirror needs must be shipped by the package.
 * text=auto eol=lf
+
+# Keep the generated Pages assets byte-stable across both writers too.
+docs/** text eol=lf
