@@ -1,5 +1,18 @@
 # Publish awtoll to PyPI via trusted publishing (OIDC) -- no API token stored.
 #
+# BLOCKED ON PyPI, NOT ON THIS FILE, and both halves were measured 2026-08-23:
+#
+#  1. Dispatching this lane failed `invalid-publisher`: the OIDC token was
+#     valid and PyPI had no publisher for the project. Trusted publishing has
+#     no org-wide wildcard -- a NEW project name needs its own registration.
+#  2. Falling back to an API token failed `429 Too Many Requests` on upload.
+#     That is the account-keyed new-project cap: this account cannot create a
+#     new PyPI project by any route right now, so the token is not a way round
+#     the registration either. Nothing partial landed; the name is still free.
+#
+# Sibling bricks (awfind, awgraph) predate the cap, which is why they publish.
+# When the cap lifts, ONE registration arms this file and nothing here changes.
+#
 # PREREQUISITE, and it is a one-time human action: a pending publisher must be
 # registered on pypi.org for owner=Aitherium, repo=awtoll,
 # workflow=pypi-publish.yml, environment=pypi. Until that exists the publish
