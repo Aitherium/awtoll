@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "awtoll"
-version = "0.1.0"
+version = "0.1.1"
 description = "What every tool call costs you in context — measured from your own agent transcripts, not claimed in a README."
 readme = "README.md"
 requires-python = ">=3.10"

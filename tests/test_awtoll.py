@@ -231,3 +231,166 @@ def test_estimator_is_labelled_and_uses_the_measured_constant():
     assert est.estimated
     assert "ESTIMATED" in est.describe()
     assert 990 <= est.count("x" * 3459) <= 1010
+
+
+def test_history_records_append_and_load(tmp_path):
+    from awtoll.history import (
+        HISTORY_VERSION,
+        HistoryRecord,
+        append_record,
+        load_history,
+    )
+
+    hist_file = tmp_path / "awtoll-history.jsonl"
+    rec = HistoryRecord(
+        timestamp="2026-08-23T00:00:00Z",
+        version=HISTORY_VERSION,
+        sessions=5,
+        calls=100,
+        waste_ratio=0.05,
+        wasted_tokens=500,
+        total_ok_tokens=10000,
+        shapes_count=10,
+        repeats_count=5,
+        ledger_pass=True,
+        ledger_findings_count=None,
+        ledger_waste_pin=0.1,
+        ledger_waste_violation=False,
+    )
+    append_record(rec, hist_file)
+    records, unreadable = load_history(hist_file)
+    assert len(records) == 1
+    assert records[0].waste_ratio == 0.05
+    assert unreadable == 0
+
+
+def test_history_skips_corrupt_lines(tmp_path):
+    from awtoll.history import load_history
+
+    hist_file = tmp_path / "awtoll-history.jsonl"
+    good_rec = (
+        '{"version": 1, "waste_ratio": 0.05, "sessions": 5, '
+        '"calls": 100, "wasted_tokens": 500, "total_ok_tokens": 10000, '
+        '"shapes_count": 10, "repeats_count": 5, "ledger_pass": true, '
+        '"ledger_findings_count": null, "ledger_waste_pin": 0.1, '
+        '"ledger_waste_violation": false}'
+    )
+    good_rec2 = (
+        '{"version": 1, "waste_ratio": 0.04, "sessions": 5, '
+        '"calls": 100, "wasted_tokens": 400, "total_ok_tokens": 10000, '
+        '"shapes_count": 10, "repeats_count": 5, "ledger_pass": true, '
+        '"ledger_findings_count": null, "ledger_waste_pin": 0.1, '
+        '"ledger_waste_violation": false}'
+    )
+    hist_file.write_text(
+        good_rec + "\n" + "{not json}\n" + good_rec2 + "\n",
+        encoding="utf-8",
+    )
+    records, unreadable = load_history(hist_file)
+    assert len(records) == 2
+    assert unreadable == 1
+
+
+def test_validate_comparability_refuses_different_versions(tmp_path):
+    from awtoll.history import HistoryRecord, validate_comparability
+
+    recs = [
+        HistoryRecord(
+            timestamp="2026-08-23T00:00:00Z",
+            version=1,
+            sessions=5,
+            calls=100,
+            waste_ratio=0.05,
+            wasted_tokens=500,
+            total_ok_tokens=10000,
+            shapes_count=10,
+            repeats_count=5,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        ),
+        HistoryRecord(
+            timestamp="2026-08-24T00:00:00Z",
+            version=2,  # Different version
+            sessions=5,
+            calls=100,
+            waste_ratio=0.04,
+            wasted_tokens=400,
+            total_ok_tokens=10000,
+            shapes_count=10,
+            repeats_count=5,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        ),
+    ]
+    stats = validate_comparability(recs)
+    assert not stats.comparable
+
+
+def test_validate_comparability_refuses_too_much_session_variation(tmp_path):
+    from awtoll.history import HISTORY_VERSION, HistoryRecord, validate_comparability
+
+    recs = [
+        HistoryRecord(
+            timestamp="2026-08-23T00:00:00Z",
+            version=HISTORY_VERSION,
+            sessions=1,
+            calls=100,
+            waste_ratio=0.05,
+            wasted_tokens=500,
+            total_ok_tokens=10000,
+            shapes_count=10,
+            repeats_count=5,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        ),
+        HistoryRecord(
+            timestamp="2026-08-24T00:00:00Z",
+            version=HISTORY_VERSION,
+            sessions=10,  # >2x variation
+            calls=200,
+            waste_ratio=0.04,
+            wasted_tokens=400,
+            total_ok_tokens=10000,
+            shapes_count=10,
+            repeats_count=5,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        ),
+    ]
+    stats = validate_comparability(recs)
+    assert not stats.comparable
+
+
+def test_trend_command_on_history(tmp_path):
+    from awtoll.cli import main
+    from awtoll.history import HISTORY_VERSION, HistoryRecord, append_record
+
+    hist_file = tmp_path / "awtoll-history.jsonl"
+    for i, waste in enumerate([0.05, 0.04, 0.03]):
+        rec = HistoryRecord(
+            timestamp=f"2026-08-{23+i:02d}T00:00:00Z",
+            version=HISTORY_VERSION,
+            sessions=5,
+            calls=100,
+            waste_ratio=waste,
+            wasted_tokens=500,
+            total_ok_tokens=10000,
+            shapes_count=10,
+            repeats_count=5,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        )
+        append_record(rec, hist_file)
+
+    result = main(["trend", "--history", str(hist_file)])
+    assert result == 0

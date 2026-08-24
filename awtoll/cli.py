@@ -21,6 +21,13 @@ from typing import List, Optional
 
 from . import __version__
 from .analyze import Report, analyze
+from .history import (
+    append_record,
+    default_history_path,
+    load_history,
+    record_from_check,
+    validate_comparability,
+)
 from .ledger import LEDGER_NAME, check, load, save, suggest_pin, suggest_threshold, unjudged
 from .toll import get_tokenizer
 from .transcripts import default_roots_from_env
@@ -286,6 +293,17 @@ def cmd_check(args) -> int:
     if pin is not None:
         print(f"repeat waste: {report.waste_ratio:.1%} against pin {pin:.1%}")
     print()
+    # Append a history record before returning.
+    hist_path = (
+        Path(args.history) if hasattr(args, "history") and args.history
+        else default_history_path(path)
+    )
+    try:
+        rec = record_from_check(report, ledger, hist_path)
+        append_record(rec, hist_path)
+    except Exception as exc:
+        print(f"warning: could not append history: {exc}", file=sys.stderr)
+
     if not findings:
         print("AWTOLL: OK")
         return EXIT_OK
@@ -293,6 +311,82 @@ def cmd_check(args) -> int:
     for f in findings:
         print(f"  x {f.rule} {f.detail}")
     return EXIT_VIOLATION
+
+
+def cmd_trend(args) -> int:
+    """Show movement in toll metrics across runs.
+
+    Only ratios move independently of session mix. Absolute tokens drift
+    with load, so a trend is valid only when session counts are stable
+    or explicitly normalized by session count.
+    """
+    hist_path = (
+        Path(args.history) if hasattr(args, "history") and args.history
+        else Path.cwd() / "awtoll-history.jsonl"
+    )
+
+    records, unreadable = load_history(hist_path)
+    if unreadable:
+        print(f"  ({_fmt(unreadable)} unreadable line(s) in history -- skipped)")
+
+    if not records:
+        return _dead(
+            f"no history found at {hist_path}. Run `awtoll check` to start recording."
+        )
+
+    stats = validate_comparability(records)
+    if not stats.comparable:
+        print(f"awtoll trend: {stats.comparable_reason}", file=sys.stderr)
+        return EXIT_VIOLATION
+
+    print(f"history: {hist_path}")
+    print(f"  {len(records)} run(s)")
+    print()
+
+    if args.json:
+        import json as json_module
+        print(json_module.dumps(
+            {
+                "records": [
+                    {
+                        "timestamp": r.timestamp,
+                        "waste_ratio": r.waste_ratio,
+                        "wasted_tokens": r.wasted_tokens,
+                        "total_ok_tokens": r.total_ok_tokens,
+                        "sessions": r.sessions,
+                        "calls": r.calls,
+                        "ledger_pass": r.ledger_pass,
+                        "ledger_waste_violation": r.ledger_waste_violation,
+                    }
+                    for r in records
+                ],
+            },
+            indent=2,
+        ))
+        return EXIT_OK
+
+    # Readable trend: show waste_ratio and pass/fail history.
+    print(f"{'time':<25} {'waste':>8} {'tokens':>12} {'pass?':>6}")
+    print("-" * 55)
+    for rec in records:
+        status = "OK" if rec.ledger_pass else "FAIL"
+        print(
+            f"{rec.timestamp[:19]:<25} {rec.waste_ratio:>7.1%} "
+            f"{_fmt(rec.wasted_tokens):>12} {status:>6}"
+        )
+
+    if records:
+        first = records[0]
+        last = records[-1]
+        delta = last.waste_ratio - first.waste_ratio
+        direction = "↓" if delta < -0.001 else "↑" if delta > 0.001 else "→"
+        print()
+        print(
+            f"{direction} waste ratio: {first.waste_ratio:.1%} (first) → "
+            f"{last.waste_ratio:.1%} (last) [{delta:+.1%}]"
+        )
+
+    return EXIT_OK
 
 
 def _as_dict(report: Report) -> dict:
@@ -340,12 +434,6 @@ def _as_dict(report: Report) -> dict:
     }
 
 
-def cmd_self_test(args) -> int:
-    from .selftest import run_self_test
-
-    return run_self_test()
-
-
 def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--root", action="append", help="transcript file or directory (repeatable)")
     p.add_argument("--limit", type=int, default=None, help="only the N newest transcripts")
@@ -358,6 +446,18 @@ def _add_common(p: argparse.ArgumentParser) -> None:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    # GENERATED doctor intercept (gen_aw_doctor.py) -- do not edit
+    _dv = locals().get("argv")
+    if (_dv if _dv is not None else __import__("sys").argv[1:])[:1] == ["doctor"]:
+        from ._doctor import report
+        return report()
+    # Handle --self-test before argparse, as it can be a global flag
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] in ("--self-test", "self-test"):
+        from .selftest import run_self_test
+        return run_self_test()
+
     ap = argparse.ArgumentParser(
         prog="awtoll",
         description="What every tool call costs you in context, measured from your transcripts.",
@@ -388,13 +488,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     p = sub.add_parser("check", help="gate: decisions recorded, waste ratcheting down")
     _add_common(p)
     p.add_argument("--ledger", help=f"path to {LEDGER_NAME} (default: ./{LEDGER_NAME})")
+    p.add_argument(
+        "--history",
+        help="path to history file (default: next to ledger)",
+    )
     p.add_argument("--init", action="store_true", help="write a ledger pinned to today")
     p.set_defaults(func=cmd_check)
 
-    p = sub.add_parser("--self-test", help="prove every rule can still fail")
-    p.set_defaults(func=cmd_self_test)
-    p = sub.add_parser("self-test")
-    p.set_defaults(func=cmd_self_test)
+    p = sub.add_parser("trend", help="show movement in waste_ratio across runs")
+    p.add_argument(
+        "--history",
+        help="path to history file (default: ./awtoll-history.jsonl)",
+    )
+    p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.set_defaults(func=cmd_trend)
 
     args = ap.parse_args(argv)
     if not getattr(args, "func", None):

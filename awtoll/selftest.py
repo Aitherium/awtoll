@@ -328,6 +328,143 @@ def run_self_test() -> int:
     rc = cli_main(["versus", "echo one", "echo two"])
     _ok("two healthy commands still compare (does not cry wolf)", rc == 0, f"got {rc}")
 
+    # --- history -----------------------------------------------------------
+    print("\nhistory")
+    from .history import (
+        HISTORY_VERSION,
+        HistoryRecord,
+        append_record,
+        load_history,
+        validate_comparability,
+    )
+
+    # Arm: a record is appended and can be read back.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hist_file = Path(tmpdir) / "awtoll-history.jsonl"
+        rec = HistoryRecord(
+            timestamp="2026-08-23T00:00:00Z",
+            version=HISTORY_VERSION,
+            sessions=5,
+            calls=100,
+            waste_ratio=0.05,
+            wasted_tokens=500,
+            total_ok_tokens=10000,
+            shapes_count=10,
+            repeats_count=5,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        )
+        append_record(rec, hist_file)
+        records, unreadable = load_history(hist_file)
+        _ok(
+            "record appended and loaded",
+            len(records) == 1 and records[0].waste_ratio == 0.05,
+            f"got {len(records)} records",
+        )
+        _ok(
+            "no unreadable lines on a valid JSONL",
+            unreadable == 0,
+            f"got {unreadable} unreadable",
+        )
+
+    # Arm: corrupt/partial history line does not crash but is counted/reported.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hist_file = Path(tmpdir) / "awtoll-history.jsonl"
+        hist_file.write_text(
+            '{"version": 1, "waste_ratio": 0.05}\n'
+            "{not json}\n"
+            '{"version": 1, "waste_ratio": 0.04}\n',
+            encoding="utf-8",
+        )
+        records, unreadable = load_history(hist_file)
+        _ok(
+            "corrupt line is skipped, not fatal",
+            len(records) == 2 and unreadable == 1,
+            f"got {len(records)} records, {unreadable} unreadable",
+        )
+
+    # Arm: validate_comparability refuses to compare incomparable runs.
+    recs = [
+        HistoryRecord(
+            timestamp="2026-08-23T00:00:00Z",
+            version=HISTORY_VERSION,
+            sessions=1,
+            calls=100,
+            waste_ratio=0.05,
+            wasted_tokens=500,
+            total_ok_tokens=10000,
+            shapes_count=10,
+            repeats_count=5,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        ),
+        HistoryRecord(
+            timestamp="2026-08-24T00:00:00Z",
+            version=HISTORY_VERSION,
+            sessions=10,
+            calls=200,
+            waste_ratio=0.04,
+            wasted_tokens=400,
+            total_ok_tokens=10000,
+            shapes_count=12,
+            repeats_count=4,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        ),
+    ]
+    stats = validate_comparability(recs)
+    _ok(
+        "incomparable runs (session count varies >2x) are refused",
+        not stats.comparable,
+        f"comparable: {stats.comparable}, reason: {stats.comparable_reason}",
+    )
+
+    # Arm: comparable runs are accepted.
+    recs2 = [
+        HistoryRecord(
+            timestamp="2026-08-23T00:00:00Z",
+            version=HISTORY_VERSION,
+            sessions=5,
+            calls=100,
+            waste_ratio=0.05,
+            wasted_tokens=500,
+            total_ok_tokens=10000,
+            shapes_count=10,
+            repeats_count=5,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        ),
+        HistoryRecord(
+            timestamp="2026-08-24T00:00:00Z",
+            version=HISTORY_VERSION,
+            sessions=6,
+            calls=120,
+            waste_ratio=0.04,
+            wasted_tokens=400,
+            total_ok_tokens=10000,
+            shapes_count=11,
+            repeats_count=4,
+            ledger_pass=True,
+            ledger_findings_count=None,
+            ledger_waste_pin=0.1,
+            ledger_waste_violation=False,
+        ),
+    ]
+    stats2 = validate_comparability(recs2)
+    _ok(
+        "comparable runs (session count <2x variation) are accepted",
+        stats2.comparable,
+        f"reason: {stats2.comparable_reason}",
+    )
+
     # --- tokenizer ---------------------------------------------------------
     print("\ntokenizer")
     est = get_tokenizer(prefer_estimate=True)
