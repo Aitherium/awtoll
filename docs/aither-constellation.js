@@ -23,8 +23,7 @@
 
   var HOST = "https://aitherium.github.io/";
   var REPOS = [
-    // GENERATED from AitherOS/config/ecosystem.yaml by
-    // AitherOS/dev/tools/gen_constellation.py -- do not hand-edit.
+    // This section is auto-generated — do not hand-edit.
     // Exactly the bricks whose registry status is `public`: anything else has no
     // page to point at, so listing it puts a 404 on every sibling's site at once.
     { id: "awdk", label: "awdk", blurb: "Build AI agent fleets — 3 lines, any..." },
