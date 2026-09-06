@@ -15,25 +15,19 @@ missing is worthless precisely when you need it.
 from __future__ import annotations
 
 import importlib.util
-import os
 import shutil
 import sys
 
-#: Frozen from the Aither World registry at generation time. A shipped
+#: Frozen from AitherOS/config/ecosystem.yaml at generation time. A shipped
 #: package cannot read the registry, and a doctor that guessed at the family
 #: would go stale in silence. Regenerate to update.
 SELF = 'awtoll'
-FAMILY = ['awask', 'awavatar', 'awbac', 'awbrain', 'awbrowse', 'awclassify', 'awdelphi', 'awdit', 'awembed', 'awevolve', 'awfind', 'awflow', 'awfocus', 'awgit', 'awgraph', 'awgym', 'awiam', 'awkno', 'awm', 'awmail', 'awnboard', 'awnest', 'awnet', 'awnode', 'awpredict', 'awprism', 'awprove', 'awreason', 'awrecover', 'awrecurse', 'awrelay', 'awrena', 'awrepl', 'awresearch', 'awrise', 'awrouter', 'awrtifact', 'awrun', 'awscreen', 'awseal', 'awsettings', 'awshare', 'awstorage', 'awswarm', 'awtax', 'awtunnel', 'awvision', 'awvoice', 'awwall', 'gawbbonet']
-PAIRS_WITH = ['adk', 'awgit', 'awgraph']
-
-#: This brick's OWN config, read out of its source at generation time.
-#: ENV_REQUIRED is `os.environ["X"]` -- absent, that is a KeyError the moment
-#: the line runs. ENV_OPTIONAL is `os.getenv("X")`, which returns None and lets
-#: the caller cope. Only this brick's namespace is listed: reporting the
-#: platform-wide vars it also touches would be noise, and a doctor that floods
-#: gets ignored.
-ENV_REQUIRED = []
-ENV_OPTIONAL = ['AWTOLL_TRANSCRIPTS']
+FAMILY = ['awarena', 'awask', 'awbac', 'awbrowse', 'awdit', 'awevolve', 'awfind', 'awgit',
+ 'awgraph', 'awiam', 'awkno', 'awm', 'awmail', 'awnboard', 'awnest', 'awnet',
+ 'awprism', 'awreason', 'awrecover', 'awrecurse', 'awrelay', 'awrepl', 'awresearch',
+ 'awrise', 'awrun', 'awscreen', 'awseal', 'awshare', 'awtunnel', 'awvision',
+ 'awvoice', 'awwall']
+PAIRS_WITH = ['awgit', 'awgraph']
 
 
 def _installed(mod: str) -> "str | None":
@@ -79,15 +73,6 @@ def report(out=None) -> int:
     if present:
         print(f"             {' '.join(sorted(present))}", file=out)
 
-    missing_req = [v for v in ENV_REQUIRED if not os.environ.get(v)]
-    if ENV_REQUIRED or ENV_OPTIONAL:
-        have = sum(1 for v in ENV_REQUIRED + ENV_OPTIONAL if os.environ.get(v))
-        total = len(ENV_REQUIRED) + len(ENV_OPTIONAL)
-        print(f"  config     {have}/{total} of this brick's own vars set", file=out)
-        if missing_req:
-            # Not a preference. os.environ[...] raises the moment it runs.
-            print(f"             MISSING REQUIRED: {' '.join(missing_req)}", file=out)
-
     local = _local_checks()
     for line in local:
         print(f"  {line}", file=out)
@@ -95,12 +80,6 @@ def report(out=None) -> int:
     if mine is None:
         print(f"\nverdict: {SELF} itself is not importable. Reinstall it before "
               f"anything else here means much.", file=out)
-        return 1
-    if missing_req:
-        print(f"\nverdict: {SELF} is missing required config "
-              f"({', '.join(missing_req)}). Those are read with os.environ[...], "
-              f"so the code path that needs them raises rather than degrades.",
-              file=out)
         return 1
     if missing_pairs:
         print(f"\nverdict: {SELF} works, but pairs with "
@@ -132,28 +111,6 @@ def _local_checks() -> "list[str]":
 
 
 def main(argv: "list[str] | None" = None) -> int:
-    # --self-test delegates to a SIBLING module when one exists.
-    #
-    # This file is generated and a fresh run replaces it, so a self-test
-    # written HERE is deleted by the next regeneration. awdelphi learned that
-    # the expensive way: 125 lines exercising four real failure paths --
-    # convergence, roster anonymization, resume, gateway-down -- lived in this
-    # file and were destroyed by a routine regeneration, silently, leaving a
-    # --self-test flag that reported PASS while asserting nothing.
-    #
-    # So the seam is a separate module the generator never writes. A package
-    # with real machinery to prove puts it in _selftest.py; everything else
-    # keeps the honest answer below rather than a self-test that only ever
-    # passes.
-    argv = list(argv if argv is not None else __import__("sys").argv[1:])
-    if "--self-test" in argv:
-        try:
-            from . import _selftest as _st
-        except Exception:
-            print("no _selftest module: this doctor reports the stack, and has",
-                  "no machinery of its own to prove")
-            return 0
-        return int(_st.run())
     return report()
 
 
