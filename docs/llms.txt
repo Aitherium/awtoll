@@ -1,0 +1,33 @@
+# awtoll
+
+> What every tool call costs you in context, measured from your own transcripts.
+
+Every agent stack claims its search/graph/memory tool is cheaper than grepping and re-reading files. Nobody measures it. The claim lives in a README or a code comment, measured once during development and gated by nothing — so a tool can regress into costing MORE than what it replaced and every signal stays green, because a tool that returns less looks identical to a tool that saves you something.
+
+## Install
+
+```
+pip install awtoll
+```
+
+## In Claude Code
+
+- skill: `/awtoll`
+
+## Use it in 30 seconds
+
+Point it at your agent transcripts and see what your ten most-used commands cost.
+
+## Composes with
+
+- [awgraph](https://aitherium.github.io/awgraph/) — A semantic code graph for agents — AST + tree-sitter, call graphs.
+- [awgit](https://aitherium.github.io/awgit/) — Semantic version control on top of git — edit-ops and leases.
+- [awdk](https://aitherium.github.io/awdk/) — Build AI agent fleets — 3 lines, any backend, local or cloud.
+
+## Where it lives
+
+- Repo: https://github.com/Aitherium/awtoll
+- Docs: https://aitherium.github.io/awtoll/
+- Manifest (keys + the one-line adoption story): https://aitherium.github.io/awtoll/aither-manifest.json
+
+Everything Aitherium, in one file for agents: https://aitherium.com/llms.txt
