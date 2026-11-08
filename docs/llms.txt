@@ -10,10 +10,6 @@ Every agent stack claims its search/graph/memory tool is cheaper than grepping a
 pip install awtoll
 ```
 
-## In Claude Code
-
-- skill: `/awtoll`
-
 ## Use it in 30 seconds
 
 Point it at your agent transcripts and see what your ten most-used commands cost.
